@@ -26,3 +26,5 @@ ContactManager.getInstance().remove("00000000000");
 ```
 
 Thanks.
+
+Soon i will push a lot of improvments here.
