@@ -1,20 +1,6 @@
 package br.com.softctrl.contact.lib;
 
-import static br.com.softctrl.contact.lib.model.ContactFactory.newContact;
-import static br.com.softctrl.contact.lib.util.CursorUtils.getCursorFromUri;
-import static br.com.softctrl.contact.lib.util.CursorUtils.getInt;
-import static br.com.softctrl.contact.lib.util.CursorUtils.getString;
-import static br.com.softctrl.contact.lib.util.StringUtils.cleanNumber;
-import static br.com.softctrl.contact.lib.util.StringUtils.isNullOrEmpty;
-
-import static br.com.softctrl.contact.lib.util.Constants.Contact.CONTACTS_DISPLAY_NAME;
-import static br.com.softctrl.contact.lib.util.Constants.Contact.CONTACTS_ID;
-import static br.com.softctrl.contact.lib.util.Constants.Contact.CONTACTS_HAS_PHONE_NUMBER;
-import static br.com.softctrl.contact.lib.util.Constants.Phone.PHONE_NUMBER;
-
-import java.io.Serializable;
-import java.util.ArrayList;
-
+import android.Manifest;
 import android.content.ContentProviderOperation;
 import android.content.ContentProviderResult;
 import android.content.ContentResolver;
@@ -23,7 +9,31 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.provider.ContactsContract;
 import android.util.Log;
+
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import br.com.softctrl.contact.lib.list.CursorArrayList;
 import br.com.softctrl.contact.lib.model.IContact;
+import br.com.softctrl.contact.lib.model.IPhoneNumber;
+
+import static br.com.softctrl.contact.lib.model.ContactFactory.newContact;
+import static br.com.softctrl.contact.lib.model.ContactFactory.newPhoneNumber;
+import static br.com.softctrl.contact.lib.util.Constants.Contact.CONTACTS_DISPLAY_NAME;
+import static br.com.softctrl.contact.lib.util.Constants.Contact.CONTACTS_HAS_PHONE_NUMBER;
+import static br.com.softctrl.contact.lib.util.Constants.Contact.CONTACTS_ID;
+import static br.com.softctrl.contact.lib.util.Constants.Phone.PHONE_ID;
+import static br.com.softctrl.contact.lib.util.Constants.Phone.PHONE_NUMBER;
+import static br.com.softctrl.contact.lib.util.CursorUtils.getCursorFromUri;
+import static br.com.softctrl.contact.lib.util.CursorUtils.getInt;
+import static br.com.softctrl.contact.lib.util.CursorUtils.getLong;
+import static br.com.softctrl.contact.lib.util.CursorUtils.getString;
+import static br.com.softctrl.contact.lib.util.ListUtils.isNullOrEmpty;
+import static br.com.softctrl.contact.lib.util.PermissionUtil.isPermissonGranted;
+import static br.com.softctrl.contact.lib.util.StringUtils.cleanNumber;
+import static br.com.softctrl.contact.lib.util.StringUtils.isNullOrEmpty;
 
 /*
 The MIT License (MIT)
@@ -66,21 +76,23 @@ public class ContactManager implements Serializable {
     }
 
     /**
-     * 
      * @param context
      * @return
      */
     public static synchronized ContactManager setup(Context context) {
+        if (!isPermissonGranted(context, Manifest.permission.READ_CONTACTS) ||
+                !isPermissonGranted(context, Manifest.permission.WRITE_CONTACTS)) {
+            CMRuntimeException.throwNew("You need to have the permissions \"android.permission.READ_CONTACTS\" and \"android.permission.WRITE_CONTACTS\" into your manifest.");
+        }
         return ($THIS = new ContactManager(context));
     }
 
     /**
-     * 
      * @return
      */
     public synchronized static final ContactManager getInstance() {
         if ($THIS == null)
-            throw new RuntimeException("You need to call setup() first.");
+            CMRuntimeException.throwNew("You need to call setup() first.");
         return $THIS;
     }
 
@@ -89,36 +101,62 @@ public class ContactManager implements Serializable {
      * @return
      */
     private static final synchronized boolean contactIsValid(final IContact contact) {
-        return (contact != null && !isNullOrEmpty(contact.getName()) && !isNullOrEmpty(contact.getNumber()));
+        return (contact != null && !isNullOrEmpty(contact.getName()) && !isNullOrEmpty(contact.getNumbers()));
     }
 
     /**
-     *
      * @param name
      * @param number
+     * @return
      */
-    public void persist(final String name, final String number) {
-        persist(newContact(name, number));
+    public long persist(final String name, final String number) {
+        return persist(newContact(name, number));
     }
 
     /**
      * @param contact
+     * @param listener
      */
-    public void persist(IContact contact) {
-        if (contactIsValid(contact)) {
-            if (find(contact.getNumber()) != null) {
-                remove(contact.getNumber());
+    public void persist(final IContact contact, final ISingleListener<Long> listener) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    listener.onSuccess(persist(contact));
+                } catch (Exception e) {
+                    listener.onError(e);
+                }
             }
+        }).start();
+    }
+
+    /**
+     * @param contact
+     * @return
+     */
+    public synchronized long persist(final IContact contact) {
+        long result = -1;
+        if (contactIsValid(contact)) {
+            // TODO ??????????????====================================
+            //            if (find(contact.getNumber()) != null) {
+            //                remove(contact.getNumber());
+            //            }
+            // =======================================================
             ArrayList<ContentProviderOperation> ops = new ArrayList<ContentProviderOperation>();
             int rawContactInsertIndex = ops.size();
 
             ops.add(ContentProviderOperation.newInsert(ContactsContract.RawContacts.CONTENT_URI)
                     .withValue(ContactsContract.RawContacts.ACCOUNT_NAME, null)
                     .withValue(ContactsContract.RawContacts.ACCOUNT_TYPE, null).build());
-            ops.add(ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
-                    .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, rawContactInsertIndex)
-                    .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
-                    .withValue(PHONE_NUMBER, contact.getNumber()).build());
+
+            for (final IPhoneNumber phoneNumber : contact.getNumbers()) {
+                ops.add(ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                        .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, rawContactInsertIndex)
+                        .withValue(ContactsContract.Data.MIMETYPE,
+                                ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
+                        .withValue(PHONE_NUMBER, phoneNumber.getNumber()).build());
+            }
+
             ops.add(ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
                     .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, rawContactInsertIndex)
                     .withValue(ContactsContract.Data.MIMETYPE,
@@ -128,22 +166,22 @@ public class ContactManager implements Serializable {
             try {
                 ContentProviderResult[] contentProviderResults = this.mContentResolver
                         .applyBatch(ContactsContract.AUTHORITY, ops);
-                if (contentProviderResults != null && contentProviderResults.length > 0) {
+                if (contentProviderResults == null || contentProviderResults.length != ops.size()) {
                     for (ContentProviderResult res : contentProviderResults) {
-                        if (res.uri == null) {
-                            Log.e(TAG, "There is one error here. - " + res);
-                        }
+                        Log.e(TAG, "There is one error here. - " + res);
                     }
+                } else {
+                    result = Long.parseLong(contentProviderResults[0].uri.getLastPathSegment());
                 }
             } catch (Exception e) {
                 Log.e(TAG, e.getMessage());
-                e.printStackTrace();
+                CMRuntimeException.throwNew(TAG, e);
             }
         }
+        return result;
     }
 
     /**
-     *
      * @param number
      */
     public IContact find(final String number) {
@@ -160,10 +198,11 @@ public class ContactManager implements Serializable {
                                 ContactsContract.CommonDataKinds.Phone.CONTENT_URI, null,
                                 ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " = " + id, null, null);
                         while (numbers.moveToNext()) {
-                            final String foundedNumber = cleanNumber(getString(numbers, PHONE_NUMBER));
-                            if (foundedNumber.contains(number)) {
+                            IPhoneNumber phoneNumber = newPhoneNumber(getLong(numbers, PHONE_ID),
+                                    cleanNumber(getString(numbers, PHONE_NUMBER)));
+                            if (phoneNumber.contains(number)) {
                                 numbers.close();
-                                result = newContact(Long.valueOf(id), name, foundedNumber);
+                                result = newContact(Long.valueOf(id), name, phoneNumber);
                                 break;
                             }
 
@@ -173,9 +212,164 @@ public class ContactManager implements Serializable {
 
                 }
             }
-        } catch (Exception ex) {
-            Log.e(TAG, ex.getMessage());
-            ex.printStackTrace();
+        } catch (Exception e) {
+            Log.e(TAG, e.getMessage());
+            CMRuntimeException.throwNew(TAG, e);
+        }
+        return result;
+
+    }
+
+    /**
+     * @param contactId
+     * @return
+     */
+    public IContact find(final Long contactId) {
+
+        String[] contactFilter = new String[]{contactId + ""};
+        Cursor contactCursor = getCursorFromUri(this.mContentResolver,
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI, null,
+                ContactsContract.CommonDataKinds.Phone.CONTACT_ID + "=?", contactFilter, null);
+        IContact result = null;
+        try {
+            if (contactCursor.getCount() == 1 && contactCursor.moveToFirst()) {
+                String name = getString(contactCursor, CONTACTS_DISPLAY_NAME);
+                List<IPhoneNumber> numbers = new ArrayList<IPhoneNumber>();
+                if (getInt(contactCursor, CONTACTS_HAS_PHONE_NUMBER) > 0) {
+                    Cursor numberCursor = getCursorFromUri(this.mContentResolver,
+                            ContactsContract.CommonDataKinds.Phone.CONTENT_URI, null,
+                            ContactsContract.CommonDataKinds.Phone.CONTACT_ID + "=?", contactFilter, null);
+                    while (numberCursor.moveToNext()) {
+                        numbers.add(newPhoneNumber(getLong(numberCursor, PHONE_ID),
+                                cleanNumber(getString(numberCursor, PHONE_NUMBER))));
+                    }
+                    numberCursor.close();
+                }
+                result = newContact(contactId, name, numbers);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, e.getMessage());
+            CMRuntimeException.throwNew(TAG, e);
+        }
+        contactCursor.close();
+        return result;
+
+    }
+
+    /**
+     * @param listener
+     */
+    public void findAll(final IMultiListener<IContact> listener) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    listener.onSuccess(findAll());
+                } catch (Exception e) {
+                    listener.onError(e);
+                }
+            }
+        }).start();
+    }
+
+    /**
+     *
+     * @param contactId
+     * @return
+     */
+    public CursorArrayList<IPhoneNumber> findPhoneNumber(long contactId) {
+        Cursor numberCursor = getCursorFromUri(this.mContentResolver,
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI, null,
+                ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " =?", new String[]{contactId + ""}, null);
+        CursorArrayList<IPhoneNumber> list = null;
+        if (numberCursor.getCount() > 0) {
+            list = new CursorArrayList<IPhoneNumber>(numberCursor) {
+                @Override
+                public List<IPhoneNumber> toList(int fromIndex, int toIndex) {
+                    List<IPhoneNumber> list = new ArrayList<IPhoneNumber>();
+                    for (int idx = getFromIndex(); idx < getToIndex(); idx++) {
+                        list.add(get(idx));
+                    }
+                    return list;
+                }
+
+                @Override
+                protected IPhoneNumber parseObject() {
+                    return newPhoneNumber(getLong(getCursor(), PHONE_ID), getString(getCursor(), PHONE_NUMBER));
+                }
+            };
+        }
+        return list;
+    }
+
+
+    /**
+     * @return
+     */
+    public CursorArrayList<IContact> findAll() {
+
+        Cursor contactCursor = getCursorFromUri(this.mContentResolver, ContactsContract.Contacts.CONTENT_URI);
+        CursorArrayList<IContact> result = null;
+        try {
+            if (contactCursor.getCount() > 0) {
+                result = new CursorArrayList<IContact>(contactCursor) {
+                    @Override
+                    public List<IContact> toList(int fromIndex, int toIndex) {
+                        List<IContact> list = new ArrayList<IContact>();
+                        for (int idx = getFromIndex(); idx < getToIndex(); idx++) {
+                            list.add(get(idx));
+                        }
+                        return list;
+                    }
+
+                    @Override
+                    protected IContact parseObject() {
+                        final List<String> numberss = null;//get(numbers);
+                        return new IContact() {
+                            private static final long serialVersionUID = 3370304794264376963L;
+
+                            @Override
+                            public Long getId() {
+                                return getLong(getCursor(), CONTACTS_ID);
+                            }
+
+                            @Override
+                            public String getName() {
+                                return getString(getCursor(), CONTACTS_DISPLAY_NAME);
+                            }
+
+                            @Override
+                            public IPhoneNumber getMainNumber() {
+                                return (getNumbers().size() == 0 ? null : getNumbers().get(0));
+                            }
+
+                            @Override
+                            public List<IPhoneNumber> getNumbers() {
+                                return findPhoneNumber(getId());
+                            }
+
+                            @Override
+                            public int hashCode() {
+                                return numberss.hashCode() + 73;
+                            }
+
+                            @Override
+                            public String toString() {
+                                return String.format("Contact()[id:%s, name:%s, number:%s]", (getId() + ""), getName(),
+                                        Arrays.toString(numberss.toArray(new String[]{})));
+                            }
+
+                            @Override
+                            public boolean equals(Object obj) {
+                                return ((obj != null) && (obj instanceof IContact) && (this.hashCode() == obj.hashCode()));
+                            }
+                        };
+                    }
+                };
+            }
+        } catch (Exception e) {
+            Log.e(TAG, e.getMessage());
+            CMRuntimeException.throwNew(TAG, e);
         }
         return result;
 
@@ -183,24 +377,75 @@ public class ContactManager implements Serializable {
 
     /**
      * @param number
+     * @param listener
+     */
+    public void remove(final String number, final ISingleListener<Integer> listener) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    listener.onSuccess(remove(number));
+                } catch (Exception e) {
+                    listener.onError(e);
+                }
+            }
+        }).start();
+    }
+
+    /**
+     * @param number
      * @return
      */
-    public int remove(final String number) {
+    public synchronized int remove(final String number) {
         int result = -1;
         Cursor cur = getCursorFromUri(this.mContentResolver,
                 Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number)));
         try {
             if (cur.moveToFirst()) {
                 do {
-                    String lookupKey = getString(cur, ContactsContract.Contacts.LOOKUP_KEY);
-                    Uri uri = Uri.withAppendedPath(ContactsContract.Contacts.CONTENT_LOOKUP_URI, lookupKey);
-                    result = this.mContentResolver.delete(uri, null, null);
+
+                    long lookupKey = getLong(cur, ContactsContract.Contacts.LOOKUP_KEY);
+                    result = remove(lookupKey);
                 } while (cur.moveToNext());
             }
 
         } catch (Exception e) {
             Log.e(TAG, e.getMessage());
-            e.printStackTrace();
+            CMRuntimeException.throwNew(TAG, e);
+        }
+        return result;
+    }
+
+    /**
+     * @param id
+     * @param listener
+     * @return
+     */
+    public void remove(final Long id, final ISingleListener<Integer> listener) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    listener.onSuccess(remove(id));
+                } catch (Exception e) {
+                    listener.onError(e);
+                }
+            }
+        }).start();
+    }
+
+    /**
+     * @param id
+     * @return
+     */
+    public int remove(final Long id) {
+        int result = -1;
+        try {
+            Uri uri = Uri.withAppendedPath(ContactsContract.Contacts.CONTENT_LOOKUP_URI, Long.toString(id));
+            result = this.mContentResolver.delete(uri, null, null);
+        } catch (Exception e) {
+            Log.e(TAG, e.getMessage());
+            CMRuntimeException.throwNew(TAG, e);
         }
         return result;
     }

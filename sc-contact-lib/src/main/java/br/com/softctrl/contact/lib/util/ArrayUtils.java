@@ -1,7 +1,4 @@
-package br.com.softctrl.contact.lib.model;
-
-import java.io.Serializable;
-import java.util.List;
+package br.com.softctrl.contact.lib.util;
 
 /*
 The MIT License (MIT)
@@ -31,30 +28,16 @@ SOFTWARE.
 /**
  * @author carlostimoshenkorodrigueslopes@gmail.com
  */
-public interface IContact extends Serializable {
+public final class ArrayUtils {
+
+    private ArrayUtils() {}
 
     /**
-     * Gets the contact id.
-     * @return the contact id.
+     * @param value
+     * @return
      */
-    Long getId();
-
-    /**
-     * Gets the contact display name.
-     * @return the contact display name.
-     */
-    String getName();
-
-    /**
-     * Gets the main number of the contact.
-     * @return the main number of the contact.
-     */
-    IPhoneNumber getMainNumber();
-
-    /**
-     * Gets the contact phone numbers.
-     * @return the contact phone numbers.
-     */
-    List<IPhoneNumber> getNumbers();
+    public static final synchronized <T extends Object> boolean isNullOrEmpty(final T[] values) {
+        return (values == null || values.length == 0);
+    }
 
 }

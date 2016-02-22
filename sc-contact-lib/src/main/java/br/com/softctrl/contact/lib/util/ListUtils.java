@@ -1,6 +1,5 @@
-package br.com.softctrl.contact.lib.model;
+package br.com.softctrl.contact.lib.util;
 
-import java.io.Serializable;
 import java.util.List;
 
 /*
@@ -31,30 +30,16 @@ SOFTWARE.
 /**
  * @author carlostimoshenkorodrigueslopes@gmail.com
  */
-public interface IContact extends Serializable {
+public final class ListUtils {
+
+    private ListUtils() {}
 
     /**
-     * Gets the contact id.
-     * @return the contact id.
+     * @param value
+     * @return
      */
-    Long getId();
-
-    /**
-     * Gets the contact display name.
-     * @return the contact display name.
-     */
-    String getName();
-
-    /**
-     * Gets the main number of the contact.
-     * @return the main number of the contact.
-     */
-    IPhoneNumber getMainNumber();
-
-    /**
-     * Gets the contact phone numbers.
-     * @return the contact phone numbers.
-     */
-    List<IPhoneNumber> getNumbers();
+    public static final synchronized <T extends Object> boolean isNullOrEmpty(final List<T> values) {
+        return (values == null || values.size() == 0);
+    }
 
 }
