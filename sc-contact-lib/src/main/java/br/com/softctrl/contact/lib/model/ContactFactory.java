@@ -120,7 +120,7 @@ public final class ContactFactory implements Serializable {
      * @return
      */
     public static final synchronized IContact newContact(final Long id, final String name, final IPhoneNumber number) {
-        List<IPhoneNumber> list = null;
+        List<IPhoneNumber> list = new ArrayList<IPhoneNumber>();
         list.add(number);
         return newContact(id, name, list);
     }
@@ -212,6 +212,10 @@ public final class ContactFactory implements Serializable {
             @Override
             public boolean equals(Object obj) {
                 return ((obj != null) && (obj instanceof IPhoneNumber) && (this.hashCode() == obj.hashCode()));
+            }
+            @Override
+            public String toString() {
+                return String.format("PhoneNumber()[id:%s, number:%s]", (id + ""), number);
             }
         };
 

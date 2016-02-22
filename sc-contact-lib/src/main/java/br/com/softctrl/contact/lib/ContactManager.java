@@ -186,36 +186,27 @@ public class ContactManager implements Serializable {
      */
     public IContact find(final String number) {
 
-        Cursor cur = getCursorFromUri(this.mContentResolver, ContactsContract.Contacts.CONTENT_URI);
+        Cursor cur = getCursorFromUri(this.mContentResolver,
+                Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number)));
         IContact result = null;
         try {
-            if (cur.getCount() > 0) {
-                while (cur.moveToNext()) {
-                    final String id = getString(cur, CONTACTS_ID);
-                    final String name = getString(cur, CONTACTS_DISPLAY_NAME);
-                    if (getInt(cur, CONTACTS_HAS_PHONE_NUMBER) > 0) {
-                        Cursor numbers = getCursorFromUri(this.mContentResolver,
-                                ContactsContract.CommonDataKinds.Phone.CONTENT_URI, null,
-                                ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " = " + id, null, null);
-                        while (numbers.moveToNext()) {
-                            IPhoneNumber phoneNumber = newPhoneNumber(getLong(numbers, PHONE_ID),
-                                    cleanNumber(getString(numbers, PHONE_NUMBER)));
-                            if (phoneNumber.contains(number)) {
-                                numbers.close();
-                                result = newContact(Long.valueOf(id), name, phoneNumber);
-                                break;
-                            }
-
-                        }
-                        numbers.close();
-                    }
-
+            if (cur.moveToFirst()) {
+                String lookupKey = getString(cur, ContactsContract.Contacts.LOOKUP_KEY);
+                Cursor contactCursor = getCursorFromUri(this.mContentResolver,
+                        Uri.withAppendedPath(ContactsContract.Contacts.CONTENT_LOOKUP_URI, lookupKey));
+                if (contactCursor.moveToFirst()) {
+                    Long contactId = getLong(contactCursor, CONTACTS_ID);
+                    String name = getString(contactCursor, CONTACTS_DISPLAY_NAME);
+                    List<IPhoneNumber> numbers = findPhoneNumber(contactId);
+                    result = newContact(contactId, name, numbers);
                 }
+                contactCursor.close();
             }
         } catch (Exception e) {
             Log.e(TAG, e.getMessage());
             CMRuntimeException.throwNew(TAG, e);
         }
+        cur.close();
         return result;
 
     }
@@ -273,7 +264,6 @@ public class ContactManager implements Serializable {
     }
 
     /**
-     *
      * @param contactId
      * @return
      */
@@ -324,41 +314,42 @@ public class ContactManager implements Serializable {
 
                     @Override
                     protected IContact parseObject() {
-                        final List<String> numberss = null;//get(numbers);
+
                         return new IContact() {
                             private static final long serialVersionUID = 3370304794264376963L;
-
+                            private final List<IPhoneNumber> mNumbers = (getId() == null ?
+                                    new ArrayList<IPhoneNumber>() : findPhoneNumber(getId()));
+                            private int sizeNumbers = getNumbers().size();
                             @Override
                             public Long getId() {
                                 return getLong(getCursor(), CONTACTS_ID);
                             }
-
                             @Override
                             public String getName() {
                                 return getString(getCursor(), CONTACTS_DISPLAY_NAME);
                             }
-
                             @Override
                             public IPhoneNumber getMainNumber() {
-                                return (getNumbers().size() == 0 ? null : getNumbers().get(0));
+                                return (sizeNumbers == 0 ? null : getNumbers().get(0));
                             }
-
                             @Override
                             public List<IPhoneNumber> getNumbers() {
-                                return findPhoneNumber(getId());
+                                return this.mNumbers;
                             }
-
                             @Override
                             public int hashCode() {
-                                return numberss.hashCode() + 73;
+                                int hashCode = -1;
+                                if (getNumbers() != null) {
+                                    hashCode = getNumbers().hashCode() * 73;
+                                }
+                                return hashCode;
                             }
-
                             @Override
                             public String toString() {
+                                String numbers = Arrays.toString(this.mNumbers.toArray());
                                 return String.format("Contact()[id:%s, name:%s, number:%s]", (getId() + ""), getName(),
-                                        Arrays.toString(numberss.toArray(new String[]{})));
+                                        numbers);
                             }
-
                             @Override
                             public boolean equals(Object obj) {
                                 return ((obj != null) && (obj instanceof IContact) && (this.hashCode() == obj.hashCode()));
@@ -403,18 +394,17 @@ public class ContactManager implements Serializable {
         try {
             if (cur.moveToFirst()) {
                 do {
-
-                    long lookupKey = getLong(cur, ContactsContract.Contacts.LOOKUP_KEY);
-                    result = remove(lookupKey);
+                    String lookupKey = getString(cur, ContactsContract.Contacts.LOOKUP_KEY);
+                    Uri uri = Uri.withAppendedPath(ContactsContract.Contacts.CONTENT_LOOKUP_URI, lookupKey);
+                    result = this.mContentResolver.delete(uri, null, null);
                 } while (cur.moveToNext());
             }
 
         } catch (Exception e) {
             Log.e(TAG, e.getMessage());
-            CMRuntimeException.throwNew(TAG, e);
+            e.printStackTrace();
         }
-        return result;
-    }
+        return result;    }
 
     /**
      * @param id
@@ -441,7 +431,7 @@ public class ContactManager implements Serializable {
     public int remove(final Long id) {
         int result = -1;
         try {
-            Uri uri = Uri.withAppendedPath(ContactsContract.Contacts.CONTENT_LOOKUP_URI, Long.toString(id));
+            Uri uri = Uri.withAppendedPath(ContactsContract.Contacts.CONTENT_URI, Long.toString(id));
             result = this.mContentResolver.delete(uri, null, null);
         } catch (Exception e) {
             Log.e(TAG, e.getMessage());
