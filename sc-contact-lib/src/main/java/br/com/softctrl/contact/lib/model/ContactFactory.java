@@ -47,15 +47,9 @@ public final class ContactFactory implements Serializable {
     private ContactFactory() {
     }
 
-//    /**
-//     * @param numbers
-//     * @return
-//     */
-//    private static synchronized List<String> get(final List<String> numbers) {
-//        return (numbers == null ? EMPTY_STRING_LIST : numbers);
-//    }
-
     /**
+     * This method is used to prevent a nullpointer in some pieces of this code.
+     * 
      * @param numbers
      * @return
      */
@@ -75,6 +69,8 @@ public final class ContactFactory implements Serializable {
     }
 
     /**
+     * Create a new IContact with a name and an array of String for phone number.
+     * 
      * @param name
      * @param numbers
      * @return
@@ -84,6 +80,8 @@ public final class ContactFactory implements Serializable {
     }
 
     /**
+     * Create a new IContact with a name and a list of String for phone number.
+     * 
      * @param name
      * @param numbers
      * @return
@@ -93,6 +91,8 @@ public final class ContactFactory implements Serializable {
     }
 
     /**
+     * Create a new IContact with a name and a single String for phone number.
+     * 
      * @param id
      * @param name
      * @param number
@@ -142,38 +142,31 @@ public final class ContactFactory implements Serializable {
         final List<IPhoneNumber> numberss = get(numbers);
         return new IContact() {
             private static final long serialVersionUID = 3370304794264376963L;
-
             @Override
             public Long getId() {
                 return id;
             }
-
             @Override
             public String getName() {
                 return name;
             }
-
             @Override
             public IPhoneNumber getMainNumber() {
                 return (getNumbers().size() == 0 ? null : getNumbers().get(0));
             }
-
             @Override
             public List<IPhoneNumber> getNumbers() {
                 return numbers;
             }
-
             @Override
             public int hashCode() {
                 return numberss.hashCode() + 73;
             }
-
             @Override
             public String toString() {
                 return String.format("Contact()[id:%s, name:%s, number:%s]", (id + ""), name,
                         Arrays.toString(numberss.toArray(new String[]{})));
             }
-
             @Override
             public boolean equals(Object obj) {
                 return ((obj != null) && (obj instanceof IContact) && (this.hashCode() == obj.hashCode()));
@@ -193,22 +186,18 @@ public final class ContactFactory implements Serializable {
             public Long getId() {
                 return id;
             }
-
             @Override
             public String getNumber() {
                 return number;
             }
-
             @Override
             public int hashCode() {
                 return (getNumber() + "").hashCode();
             }
-
             @Override
             public boolean contains(String number) {
                 return (getNumber() + "").contains(number);
             }
-
             @Override
             public boolean equals(Object obj) {
                 return ((obj != null) && (obj instanceof IPhoneNumber) && (this.hashCode() == obj.hashCode()));
