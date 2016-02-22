@@ -21,8 +21,6 @@ import static br.com.softctrl.contact.lib.util.Constants.Phone.PHONE_NUMBER;
 import static br.com.softctrl.contact.lib.util.CursorUtils.getLong;
 import static br.com.softctrl.contact.lib.util.CursorUtils.getString;
 
-;
-
 /*
 The MIT License (MIT)
 
