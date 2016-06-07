@@ -1,0 +1,6 @@
+{
+  "name": "Sc-contact-lib",
+  "tagline": "Just a little project to manage contacts in android devices",
+  "body": "# sc-contact-lib\r\nJust a little project to manage contacts in android devices\r\n\r\nTo use, just make those imports:\r\n\r\n```java\r\nimport br.com.softctrl.contact.lib.ContactManager;\r\n```\r\n\r\nThen, don't forget to call the \"setup(Context)\" method first.\r\n\r\n```java\r\n// Just a sample, imagine that i am calling this method on an activity onCreate method:\r\nContactManager.setup(this);\r\n```\r\n\r\nAnd finally, we can call this methods:\r\n\r\n```java\r\n// Create Or update:\r\nContactManager.getInstance().persist(\"Contact name\", \"00000000000\");\r\n// Find a contact by phone number:\r\nToast.makeText(MainActivity.this, String.format(\"Contact:[%s]\", \"\" + ContactManager.getInstance().find(\"00000000000\")), Toast.LENGTH_LONG).show();\r\n// Remove a contact by phone number:\r\nContactManager.getInstance().remove(\"00000000000\");\r\n```\r\n\r\nThanks.\r\n\r\n### under development yet.\r\n\r\n### Authors and Contributors\r\nCarlos Timoshenko (@defunkt).",
+  "note": "Don't delete this file! It's used internally to help with page regeneration."
+}
